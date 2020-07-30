@@ -56,8 +56,8 @@ void main() {
         if (control) {
             usbSetKeycode(2, EKY != 0 ? 0 : 44); // KEY_SPACE
             usbPushKeydata();
+            delay(1);
         }
-        delay(1);
 
         LEDB = control;
     }

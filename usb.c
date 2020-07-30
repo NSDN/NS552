@@ -111,7 +111,7 @@ const uint8_c usbCfgDesc[] = {
     0x07,        // bLength
     0x05,        // bDescriptorType (Endpoint)
     0x83,        // bEndpointAddress (IN/D2H)
-    0x02,        // bmAttributes (Bulk)
+    0x03,        // bmAttributes (Interrupt)
     0x40, 0x00,  // wMaxPacketSize 64
     0x00,        // bInterval 0 (unit depends on device speed)
 
@@ -181,28 +181,22 @@ const uint8_c CustomRepDesc[] = {
     0x06, 0x00, 0xFF,  // Usage Page (Vendor Defined 0xFF00)
     0x09, 0x01,        // Usage (0x01)
     0xA1, 0x01,        // Collection (Application)
-    0x85, 0x3F,        //   Report ID (63)
+    0x85, 0xAA,        //   Report ID (170)
     0x95, 0x20,        //   Report Count (32)
     0x75, 0x08,        //   Report Size (8)
     0x25, 0x01,        //   Logical Maximum (1)
-    0x15, 0x01,        //   Logical Minimum (1)
+    0x15, 0x00,        //   Logical Minimum (0)
     0x09, 0x01,        //   Usage (0x01)
     0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x85, 0x3F,        //   Report ID (63)
+    0x85, 0x55,        //   Report ID (85)
     0x95, 0x20,        //   Report Count (32)
     0x75, 0x08,        //   Report Size (8)
     0x25, 0x01,        //   Logical Maximum (1)
-    0x15, 0x01,        //   Logical Minimum (1)
+    0x15, 0x00,        //   Logical Minimum (0)
     0x09, 0x01,        //   Usage (0x01)
     0x91, 0x02,        //   Output (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position,Non-volatile)
     0xC0,              // End Collection
 };
-/*鼠标数据*/
-uint8_t HIDMouse[] = { 0x0, 0x0, 0x0, 0x0 };
-/*键盘数据*/
-uint8_t HIDKey[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-uint8_x HIDInput[32] = { 0 };
-uint8_x HIDOutput[32] = { 0 };
 
 const uint8_c usbLangDesc[] = { 0x04, 0x03, 0x04, 0x08 };
 const uint8_c usbManuDesc[] = { 0x0A, 0x03, 'N', 0, 'S', 0, 'D', 0, 'N', 0 };
@@ -217,8 +211,13 @@ uint8_x __at (0x0000) Ep0Buffer[THIS_ENDP0_SIZE];                               
 uint8_x __at (0x0008) Ep1Buffer[MAX_PACKET_SIZE];                                           //端点1 IN缓冲区,必须是偶地址
 uint8_x __at (0x0048) Ep2Buffer[MAX_PACKET_SIZE];                                           //端点2 IN缓冲区,必须是偶地址
 uint8_x __at (0x0088) Ep3Buffer[2 * MAX_PACKET_SIZE];                                       //端点3 OUT&IN缓冲区,必须是偶地址
+uint8_x __at (0x0108) HIDMouse[] = { 0x0, 0x0, 0x0, 0x0 };                                  //鼠标数据
+uint8_x __at (0x010C) HIDKey[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };      //键盘数据
+uint8_x __at (0x0116) HIDInput[32] = { 0 };                                                 //自定义HID接收缓冲
+uint8_x __at (0x0136) HIDOutput[32] = { 0 };                                                //自定义HID发送缓冲
 uint8_t             SetupReqCode, SetupLen, Ready, Count, FLAG, UsbConfig;
 uint8_t*            pDescr;                                                                 //USB配置标志
+volatile __bit      HIDIN = 0;
 #define UsbSetupBuf ((PUSB_SETUP_REQ)Ep0Buffer)
 __sbit __at (0xB3) LEDA;
 __sbit __at (0xB4) LEDB;
@@ -230,15 +229,16 @@ void __usbDeviceInterrupt() __interrupt (INT_NO_USB) __using (1) {
 				case UIS_TOKEN_OUT | 3:                                                     // endpoint 3# 中断端点下传
 					if (U_TOG_OK) {                                                         // 不同步的数据包将丢弃
 						len = USB_RX_LEN;
-						for (i = 0; i < len; i++) {
-							Ep3Buffer[MAX_PACKET_SIZE + i] = Ep3Buffer[i] ^ 0xFF;           // OUT数据取反到IN由计算机验证
-						}
-						UEP3_T_LEN = len;
-						UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;           // 允许上传
+                        if (Ep3Buffer[0] == 0x55 && len - 1 == sizeof(HIDInput) && !HIDIN) {
+                            for (i = 1; i < len; i++)
+                                HIDInput[i - 1] = Ep3Buffer[i];
+                            HIDIN = 1;
+                        }
 					}
 					break;
-				case UIS_TOKEN_IN | 3:                                                      // endpoint 3# 批量端点上传
-					UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_NAK;               // 暂停上传
+				case UIS_TOKEN_IN | 3:                                                      //endpoint 3# 中断端点上传
+					UEP3_T_LEN = 0;                                                         //预使用发送长度一定要清空
+                    UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_NAK;               //默认应答NAK
 					break;
                 case UIS_TOKEN_IN | 2:                                                      //endpoint 2# 中断端点上传
                     UEP2_T_LEN = 0;                                                         //预使用发送长度一定要清空
@@ -536,8 +536,8 @@ void usbDevInit() {
     UEP2_3_MOD = UEP2_3_MOD & ~bUEP2_BUF_MOD | bUEP2_TX_EN;                     //端点2发送使能 64字节缓冲区
     UEP2_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK;                                  //端点2自动翻转同步标志位，IN事务返回NAK
     UEP3_DMA = 0x0088;                                                          //端点3数据传输地址
-    UEP2_3_MOD = UEP2_3_MOD | bUEP3_RX_EN | bUEP3_TX_EN;                        //端点3发送使能 128字节缓冲区
-    UEP3_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;                  //端点3自动翻转同步标志位，IN事务返回NAK
+    UEP2_3_MOD = UEP2_3_MOD & ~bUEP3_BUF_MOD | bUEP3_RX_EN | bUEP3_TX_EN;       //端点3收发使能 128字节缓冲区
+    UEP3_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;                  //OUT事务返回ACK，IN事务返回NAK
 
 	USB_DEV_AD = 0x00;
 	USB_CTRL |= bUC_DEV_PU_EN | bUC_INT_BUSY | bUC_DMA_EN;                      // 启动USB设备及DMA，在中断期间中断标志未清除前自动返回NAK
@@ -560,6 +560,13 @@ void Enp2IntIn( ) {
     UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;                   //有数据时上传数据并应答ACK
 }
 
+void Enp3IntIn( ) {
+    Ep3Buffer[MAX_PACKET_SIZE] = 0xAA;
+    memcpy(Ep3Buffer + MAX_PACKET_SIZE + 1, HIDOutput, sizeof(HIDOutput));      //加载上传数据
+    UEP3_T_LEN = sizeof(HIDOutput) + 1;                                         //上传数据长度
+    UEP3_CTRL = UEP3_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;                   //有数据时上传数据并应答ACK
+}
+
 void usbSetKeycode(uint8_t i, uint8_t key) {
     uint8_t len = sizeof(HIDKey);
     i = i % len;
@@ -568,64 +575,32 @@ void usbSetKeycode(uint8_t i, uint8_t key) {
 
 void usbReleaseAll() {
     uint8_t len = sizeof(HIDKey);
-    memset(HIDKey, 0x00, len);
+    for (uint8_t i = 0; i < len; i++)
+        HIDKey[i] = 0x00;
 }
 
 void usbPushKeydata() {
-    while (FLAG == 0);
+    FLAG = 0;
     Enp1IntIn();
+    while (FLAG == 0);
 }
 
-void usbHIDTestSend(uint8_t i) {
-    switch(i) {
-//鼠标数据上传示例
-    case 'L':                                                        //左键
-        HIDMouse[0] = 0x01;
-        Enp2IntIn();
-        HIDMouse[0] = 0;
-        break;
-    case 'R':                                                        //右键
-        HIDMouse[0] = 0x02;
-        Enp2IntIn();
-        HIDMouse[0] = 0;
-        break;
-//键盘数据上传示例
-    case 'A':                                                         //A键
-        FLAG = 0;
-        HIDKey[2] = 0x04;                                             //按键开始
-        Enp1IntIn();
-        HIDKey[2] = 0;                                                //按键结束
-        while(FLAG == 0)
-        {
-            ;    /*等待上一包传输完成*/
-        }
-        Enp1IntIn();
-        break;
-    case 'P':                                                         //P键
-        FLAG = 0;
-        HIDKey[2] = 0x13;
-        Enp1IntIn();
-        HIDKey[2] = 0;                                                //按键结束
-        while(FLAG == 0)
-        {
-            ;    /*等待上一包传输完成*/
-        }
-        Enp1IntIn();
-        break;
-    case 'Q':                                                         //Num Lock键
-        FLAG = 0;
-        HIDKey[2] = 0x14;
-        Enp1IntIn();
-        HIDKey[2] = 0;                                                //按键结束
-        while(FLAG == 0)
-        {
-            ;    /*等待上一包传输完成*/
-        }
-        Enp1IntIn();
-        break;
-    default:                                                          //其他
-        UEP1_CTRL = UEP1_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_NAK;     //默认应答NAK
-        UEP2_CTRL = UEP2_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_NAK;     //默认应答NAK
-        break;
-    }
+uint8_t getHIDData(uint8_t index) {
+    return HIDInput[index % sizeof(HIDInput)];
+}
+
+void setHIDData(uint8_t index, uint8_t data) {
+    HIDOutput[index % sizeof(HIDOutput)] = data;
+}
+
+__bit hasHIDData() {
+    return HIDIN;
+}
+
+void requestHIDData() {
+    HIDIN = 0;
+}
+
+void pushHIDData() {
+    Enp3IntIn();
 }
