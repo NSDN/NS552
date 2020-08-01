@@ -58,8 +58,8 @@ const uint8_c usbCfgDesc[] = {
     0x05,        //   bDescriptorType (Endpoint)
     0x81,        //   bEndpointAddress (IN/D2H)
     0x03,        //   bmAttributes (Interrupt)
-    0x08, 0x00,  //   wMaxPacketSize 8
-    0x0A,        //   bInterval 10 (unit depends on device speed)
+    0x0A, 0x00,  //   wMaxPacketSize 10
+    0x01,        //   bInterval 1 (unit depends on device speed)
 
 /* -------------------------------- */
 //  Mouse
@@ -139,7 +139,7 @@ const uint8_c KeyRepDesc[] = {
     0x95, 0x01,        //   Report Count (1)
     0x75, 0x08,        //   Report Size (8)
     0x81, 0x01,        //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x95, 0x06,        //   Report Count (6)
+    0x95, 0x08,        //   Report Count (8)
     0x75, 0x08,        //   Report Size (8)
     0x26, 0xFF, 0x00,  //   Logical Maximum (255)
     0x05, 0x07,        //   Usage Page (Kbrd/Keypad)

@@ -2,6 +2,8 @@
 #include "sys.h"
 #include "usb.h"
 
+#include <string.h>
+
 void __usbDeviceInterrupt() __interrupt (INT_NO_USB) __using (1);
 extern uint8_t FLAG, Ready;
 
@@ -12,6 +14,7 @@ __sbit __at (0x91) IKY;
 __sbit __at (0xB0) EKY;
 
 volatile __bit control = 1;
+volatile uint8_x __at (0x0000) xRAM[0x400];
 
 void main() {
     P1_MOD_OC &= ~(0x02); P1_DIR_PU &= ~(0x02);
@@ -26,24 +29,14 @@ void main() {
     UEP2_T_LEN = 0;
     UEP3_T_LEN = 0;
 
-    FLAG = 0;
-    Ready = 0;
+    FLAG = 1;
 
-    LEDA = 1; LEDB = 1;
-    uint8_t count = 0;
-    while (!Ready) {
-        delay(100);
-        count += 1;
-        if (count > 10)
-            break;
-    }
+    LEDA = 0; LEDB = 1;
+    memset(xRAM, 0x00, sizeof(xRAM));
+    delay(1000);
     LEDA = 1; LEDB = 0;
     usbReleaseAll();
     usbPushKeydata();
-    delay(100);
-    LEDA = 0; LEDB = 1;
-    delay(100);
-    LEDA = 1; LEDB = 0;
 
     while (1) {
         if (IKY == 0) {
