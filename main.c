@@ -14,7 +14,7 @@ __sbit __at (0x91) IKY;
 __sbit __at (0xB0) EKY;
 
 volatile __bit control = 1;
-volatile uint8_x __at (0x0000) xRAM[0x400];
+volatile uint8_t prevKey = 0;
 
 void main() {
     P1_MOD_OC &= ~(0x02); P1_DIR_PU &= ~(0x02);
@@ -31,28 +31,37 @@ void main() {
 
     FLAG = 1;
 
-    LEDA = 0; LEDB = 1;
-    memset(xRAM, 0x00, sizeof(xRAM));
-    delay(1000);
     LEDA = 1; LEDB = 0;
+    delay(500);
+    LEDA = 0; LEDB = 1;
     usbReleaseAll();
     usbPushKeydata();
+    requestHIDData();
 
     while (1) {
         if (IKY == 0) {
             while (IKY == 0);
-            control = !control;
             usbReleaseAll();
+            usbSetKeycode(0, 1);                        // Report ID 1
+            usbSetKeycode(9, 41);                       // KEY_ESC
+            usbPushKeydata();
+            delay(100);
+            usbReleaseAll();
+            usbSetKeycode(0, 1);                        // Report ID 1
+            usbSetKeycode(9, 0);                        // KEY_ESC
             usbPushKeydata();
         }
         
-        if (control) {
-            usbSetKeycode(2, EKY != 0 ? 0 : 44); // KEY_SPACE
+        usbReleaseAll();
+        usbSetKeycode(0, 1);                            // Report ID 1
+        usbSetKeycode(1, 0);                            // NO CONTROL
+        uint8_t val = 0;
+        val |= (EKY != 0 ? 0 : 0x01);
+        usbSetKeycode(2, EKY != 0 ? 0 : 44);            // KEY_SPACE
+        if (val != prevKey) {
+            prevKey = val;
             usbPushKeydata();
-            delay(1);
         }
-
-        LEDB = control;
     }
     
 }

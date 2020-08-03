@@ -9,15 +9,15 @@
 const uint8_c usbDevDesc[] = {
     0x12,               // 描述符长度(18字节)
     0x01,               // 描述符类型
-    0x10, 0x01,         // 本设备所用USB版本(1.1)
-//  0x20, 0x00,         //本设备所用USB版本(2.0)
+//  0x10, 0x01,         // 本设备所用USB版本(1.1)
+    0x20, 0x00,         //本设备所用USB版本(2.0)
     0x00,               // 类代码
     0x00,               // 子类代码
     0x00,               // 设备所用协议
     THIS_ENDP0_SIZE,    // 端点0最大包长
     0x32, 0x32,         // 厂商ID
-    0x01, 0x00,         // 产品ID
-    0x00, 0x02,         // 设备版本号 (1.0)
+    0x02, 0x00,         // 产品ID
+    0x00, 0x01,         // 设备版本号 (1.0)
     0x01,               // 描述厂商信息的字符串描述符的索引值
     0x02,               // 描述产品信息的字串描述符的索引值
     0x03,               // 描述设备序列号信息的字串描述符的索引值
@@ -52,7 +52,7 @@ const uint8_c usbCfgDesc[] = {
     0x00,        //   bCountryCode
     0x01,        //   bNumDescriptors
     0x22,        //   bDescriptorType[0] (HID)
-    0x2C, 0x00,  //   wDescriptorLength[0] 44
+    0x45, 0x00,  //   wDescriptorLength[0] 69
 
     0x07,        //   bLength
     0x05,        //   bDescriptorType (Endpoint)
@@ -128,23 +128,35 @@ const uint8_c KeyRepDesc[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x06,        // Usage (Keyboard)
     0xA1, 0x01,        // Collection (Application)
+    0x85, 0x01,        //   Report ID (1)
     0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
-    0x19, 0xE0,        //   Usage Minimum (0xE0)
-    0x29, 0xE7,        //   Usage Maximum (0xE7)
     0x15, 0x00,        //   Logical Minimum (0)
     0x25, 0x01,        //   Logical Maximum (1)
+    0x19, 0xE0,        //   Usage Minimum (0xE0)
+    0x29, 0xE7,        //   Usage Maximum (0xE7)
     0x75, 0x01,        //   Report Size (1)
     0x95, 0x08,        //   Report Count (8)
     0x81, 0x02,        //   Input (Data,Var,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x95, 0x01,        //   Report Count (1)
-    0x75, 0x08,        //   Report Size (8)
-    0x81, 0x01,        //   Input (Const,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
-    0x95, 0x08,        //   Report Count (8)
-    0x75, 0x08,        //   Report Size (8)
-    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
     0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x00,  //   Logical Maximum (255)
     0x19, 0x00,        //   Usage Minimum (0x00)
     0x29, 0x91,        //   Usage Maximum (0x91)
+    0x75, 0x08,        //   Report Size (8)
+    0x95, 0x08,        //   Report Count (8)
+    0x81, 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
+    0xC0,              // End Collection
+    0x05, 0x0C,        // Usage Page (Consumer)
+    0x09, 0x01,        // Usage (Consumer Control)
+    0xA1, 0x01,        // Collection (Application)
+    0x85, 0x02,        //   Report ID (2)
+    0x05, 0x0C,        //   Usage Page (Consumer)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x26, 0xFF, 0x7F,  //   Logical Maximum (32767)
+    0x19, 0x00,        //   Usage Minimum (0x00)
+    0x2A, 0xFF, 0x02,  //   Usage Maximum (0x2FF)
+    0x75, 0x10,        //   Report Size (16)
+    0x95, 0x01,        //   Report Count (1)
     0x81, 0x00,        //   Input (Data,Array,Abs,No Wrap,Linear,Preferred State,No Null Position)
     0xC0,              // End Collection
 };
@@ -211,8 +223,15 @@ uint8_x __at (0x0000) Ep0Buffer[THIS_ENDP0_SIZE];                               
 uint8_x __at (0x0008) Ep1Buffer[MAX_PACKET_SIZE];                                           //端点1 IN缓冲区,必须是偶地址
 uint8_x __at (0x0048) Ep2Buffer[MAX_PACKET_SIZE];                                           //端点2 IN缓冲区,必须是偶地址
 uint8_x __at (0x0088) Ep3Buffer[2 * MAX_PACKET_SIZE];                                       //端点3 OUT&IN缓冲区,必须是偶地址
-uint8_x __at (0x0108) HIDMouse[] = { 0x0, 0x0, 0x0, 0x0 };                                  //鼠标数据
-uint8_x __at (0x010C) HIDKey[] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };      //键盘数据
+uint8_x __at (0x0108) HIDMouse[4] = { 0 };                                                  //鼠标数据
+/*
+    byte 0: control key
+        bit 0-7: lCtrl, lShift, lAlt, lGUI, rCtrl, rShift, rAlt, rGUI
+    byte 1: multimedia key / or reversed
+        bit 0-7: play, pause, next, prev, stop, mute, vol+, vol-
+    byte 2-9: standard key
+*/
+uint8_x __at (0x010C) HIDKey[10] = { 0 };                                                   //键盘数据
 uint8_x __at (0x0116) HIDInput[32] = { 0 };                                                 //自定义HID接收缓冲
 uint8_x __at (0x0136) HIDOutput[32] = { 0 };                                                //自定义HID发送缓冲
 uint8_t             SetupReqCode, SetupLen, Ready, Count, FLAG, UsbConfig;
@@ -526,16 +545,16 @@ void usbDevInit() {
     UDEV_CTRL &= ~bUD_LOW_SPEED;                                               //选择全速12M模式，默认方式
     USB_CTRL &= ~bUC_LOW_SPEED;
 
-    UEP0_DMA = 0x0000;                                                          //端点0数据传输地址
+    UEP0_DMA = (uint16_t) (&Ep0Buffer[0]);                                      //端点0数据传输地址
     UEP4_1_MOD &= ~(bUEP4_RX_EN | bUEP4_TX_EN);                                 //端点0单64字节收发缓冲区
     UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;                                  //OUT事务返回ACK，IN事务返回NAK
-    UEP1_DMA = 0x0008;                                                          //端点1数据传输地址
+    UEP1_DMA = (uint16_t) (&Ep1Buffer[0]);                                      //端点1数据传输地址
     UEP4_1_MOD = UEP4_1_MOD & ~bUEP1_BUF_MOD | bUEP1_TX_EN;                     //端点1发送使能 64字节缓冲区
     UEP1_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK;                                  //端点1自动翻转同步标志位，IN事务返回NAK
-    UEP2_DMA = 0x0048;                                                          //端点2数据传输地址
+    UEP2_DMA = (uint16_t) (&Ep2Buffer[0]);                                      //端点2数据传输地址
     UEP2_3_MOD = UEP2_3_MOD & ~bUEP2_BUF_MOD | bUEP2_TX_EN;                     //端点2发送使能 64字节缓冲区
     UEP2_CTRL = bUEP_AUTO_TOG | UEP_T_RES_NAK;                                  //端点2自动翻转同步标志位，IN事务返回NAK
-    UEP3_DMA = 0x0088;                                                          //端点3数据传输地址
+    UEP3_DMA = (uint16_t) (&Ep3Buffer[0]);                                      //端点3数据传输地址s
     UEP2_3_MOD = UEP2_3_MOD & ~bUEP3_BUF_MOD | bUEP3_RX_EN | bUEP3_TX_EN;       //端点3收发使能 128字节缓冲区
     UEP3_CTRL = bUEP_AUTO_TOG | UEP_R_RES_ACK | UEP_T_RES_NAK;                  //OUT事务返回ACK，IN事务返回NAK
 
@@ -580,9 +599,17 @@ void usbReleaseAll() {
 }
 
 void usbPushKeydata() {
-    FLAG = 0;
-    Enp1IntIn();
     while (FLAG == 0);
+    
+    uint8_t len = 0;
+    uint8_t type = HIDKey[0];
+    if (type == 0x01) len = sizeof(HIDKey);
+    else if (type == 0x02) len = 3;
+    if (type > 0) {
+        memcpy(Ep1Buffer, HIDKey, len);
+        UEP1_T_LEN = len;
+        UEP1_CTRL = UEP1_CTRL & ~ MASK_UEP_T_RES | UEP_T_RES_ACK;
+    }
 }
 
 uint8_t getHIDData(uint8_t index) {
